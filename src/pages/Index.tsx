@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Newspaper, BarChart3, TrendingUp, Activity, ThumbsUp, Gauge } from 'lucide-react';
+import { Newspaper, BarChart3, TrendingUp, Activity, ThumbsUp, Gauge, AlertCircle } from 'lucide-react';
 import { KeywordInput } from '@/components/dashboard/KeywordInput';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { TrendChart } from '@/components/dashboard/TrendChart';
 import { SentimentChart } from '@/components/dashboard/SentimentChart';
 import { 
-  generateTrendData, 
-  generateSentimentData, 
+  fetchNewsTrends,
+  fetchSentimentTrends,
   calculateStats,
   TrendDataPoint,
   SentimentDataPoint 
-} from '@/utils/mockNewsData';
+} from '@/services/newsApi';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [keyword, setKeyword] = useState<string>('');
@@ -18,22 +19,56 @@ const Index = () => {
   const [sentimentData, setSentimentData] = useState<SentimentDataPoint[]>([]);
   const [stats, setStats] = useState<ReturnType<typeof calculateStats> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleSearch = async (searchKeyword: string) => {
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const trend = generateTrendData(searchKeyword);
-    const sentiment = generateSentimentData(searchKeyword);
-    const calculatedStats = calculateStats(trend, sentiment);
-    
-    setKeyword(searchKeyword);
-    setTrendData(trend);
-    setSentimentData(sentiment);
-    setStats(calculatedStats);
-    setIsLoading(false);
+    try {
+      // Fetch both APIs in parallel
+      const [trendResult, sentimentResult] = await Promise.all([
+        fetchNewsTrends(searchKeyword),
+        fetchSentimentTrends(searchKeyword),
+      ]);
+
+      console.log('Trend data:', trendResult);
+      console.log('Sentiment data:', sentimentResult);
+
+      if (trendResult.length === 0 && sentimentResult.length === 0) {
+        toast({
+          title: '검색 결과 없음',
+          description: `"${searchKeyword}" 키워드에 대한 데이터가 없습니다.`,
+          variant: 'destructive',
+        });
+        setError('검색 결과가 없습니다.');
+        return;
+      }
+
+      const calculatedStats = calculateStats(trendResult, sentimentResult);
+      
+      setKeyword(searchKeyword);
+      setTrendData(trendResult);
+      setSentimentData(sentimentResult);
+      setStats(calculatedStats);
+
+      toast({
+        title: '분석 완료',
+        description: `"${searchKeyword}" 키워드 분석이 완료되었습니다.`,
+      });
+    } catch (err) {
+      console.error('Search error:', err);
+      const errorMessage = err instanceof Error ? err.message : '데이터를 불러오는데 실패했습니다.';
+      setError(errorMessage);
+      toast({
+        title: '오류 발생',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -60,15 +95,26 @@ const Index = () => {
           <KeywordInput onSearch={handleSearch} isLoading={isLoading} />
         </section>
 
+        {/* Error State */}
+        {error && !isLoading && keyword && (
+          <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+            <div className="p-4 rounded-full bg-negative/10 mb-4">
+              <AlertCircle className="w-10 h-10 text-negative" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">데이터를 불러올 수 없습니다</h3>
+            <p className="text-muted-foreground text-center max-w-md">{error}</p>
+          </div>
+        )}
+
         {/* Results Section */}
-        {keyword && stats && (
+        {keyword && stats && !error && (
           <>
             {/* Stats Grid */}
             <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <StatsCard
                 title="총 언급 횟수"
                 value={stats.totalMentions.toLocaleString()}
-                subtitle="지난 30일"
+                subtitle={`${trendData.length}일간`}
                 icon={BarChart3}
                 delay={0}
               />
@@ -99,14 +145,18 @@ const Index = () => {
 
             {/* Charts */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <TrendChart data={trendData} keyword={keyword} />
-              <SentimentChart data={sentimentData} keyword={keyword} />
+              {trendData.length > 0 && (
+                <TrendChart data={trendData} keyword={keyword} />
+              )}
+              {sentimentData.length > 0 && (
+                <SentimentChart data={sentimentData} keyword={keyword} />
+              )}
             </section>
           </>
         )}
 
         {/* Empty State */}
-        {!keyword && (
+        {!keyword && !isLoading && (
           <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
             <div className="p-4 rounded-full bg-primary/5 mb-6">
               <TrendingUp className="w-12 h-12 text-primary/40" />
@@ -119,13 +169,28 @@ const Index = () => {
             </p>
           </div>
         )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+            <div className="p-4 rounded-full bg-primary/10 mb-6 animate-pulse-soft">
+              <Activity className="w-12 h-12 text-primary" />
+            </div>
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              데이터 분석 중...
+            </h2>
+            <p className="text-muted-foreground text-center max-w-md">
+              뉴스 데이터를 분석하고 있습니다. 잠시만 기다려주세요.
+            </p>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="border-t border-border/50 mt-auto">
         <div className="container mx-auto px-4 py-4">
           <p className="text-xs text-muted-foreground text-center">
-            현재 데모 데이터로 동작합니다. 실제 뉴스 데이터 연동이 필요합니다.
+            실시간 뉴스 데이터 분석 대시보드
           </p>
         </div>
       </footer>
