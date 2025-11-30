@@ -18,7 +18,7 @@ export interface SentimentData {
   neutral: number;
 }
 
-const API_URL = "https://jheqpdgpjexrgjpmehku.supabase.co/functions/v1/news-trends";
+const API_URL = "https://jheqpdgpjexrgjpmehku.supabase.co/functions/v1";
 
 export async function getTrendData(keyword: string): Promise<TrendData[]> {
   try {
