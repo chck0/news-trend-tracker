@@ -30,11 +30,9 @@ export async function getTrendData(keyword: string): Promise<TrendData[]> {
     }
     const data = await response.json();
 
-    console.log("트렌드 데이터 응답:", data);
-
     // API 응답을 TrendData 형식으로 변환
-    if (Array.isArray(data.trends)) {
-      return data.trends.map((item) => ({
+    if (Array.isArray(data)) {
+      return data.map((item) => ({
         date: item.date,
         count: item.count || 0,
       }));
@@ -58,17 +56,17 @@ export async function getSentimentData(
       throw new Error("API 호출 실패");
     }
     const data = await response.json();
-    console.log("감성 데이터 응답:", data);
+
     // API 응답을 SentimentData 형식으로 변환
-    if (Array.isArray(data.trends)) {
-      return data.trends.map((item) => ({
+    if (Array.isArray(data)) {
+      return data.map((item) => ({
         date: item.date,
-        positive: item.counts.positive || 0,
-        negative: item.counts.negative || 0,
-        neutral: item.counts.neutral || 0,
+        positive: item.sentiments.positive || 0,
+        negative: item.sentiments.negative || 0,
+        neutral: item.sentiments.neutral || 0,
       }));
     }
-    console.log("감성 데이터 응답:", data);
+
     return [];
   } catch (error) {
     console.error("감성 데이터 조회 실패:", error);
