@@ -58,9 +58,6 @@ export async function getSentimentData(
       throw new Error("API 호출 실패");
     }
     const data = await response.json();
-
-    console.log(data);
-
     console.log("감성 데이터 응답:", data);
     // API 응답을 SentimentData 형식으로 변환
     if (Array.isArray(data.trends)) {
